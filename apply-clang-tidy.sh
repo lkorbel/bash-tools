@@ -3,32 +3,43 @@
 # Apply clang tidy checks as separate commits to all files in project
 # Requires: bear, make, clang-tidy
 
-CLANG_TIDY=run-clang-tidy-3.8.py
-CLANG_FORMAT=clang-format-3.8
+CLANG_TIDY=run-clang-tidy
 #skip any files in hidden directories (name starting with ".")
-FILE_PATTERN="^((?!\.\w+)[\w\.]+\/{1})*\w+\.cpp$"
-#list of check we want ot perform on code
-CHECKS=(modernize-loop-convert modernize-make-unique modernize-redundant-void-arg modernize-replace-auto-ptr modernize-shrink-to-fit modernize-use-auto modernize-use-default modernize-use-nullptr modernize-use-override cppcoreguidelines-c-copy-assignment-signature cppcoreguidelines-pro-bounds-array-to-pointer-decay cppcoreguidelines-pro-bounds-constant-array-index cppcoreguidelines-pro-bounds-pointer-arithmetic cppcoreguidelines-pro-type-const-cast cppcoreguidelines-pro-type-cstyle-cast cppcoreguidelines-pro-type-reinterpret-cast cppcoreguidelines-pro-type-union-access cppcoreguidelines-pro-type-vararg readability-container-size-empty readability-function-size readability-identifier-naming readability-inconsistent-declaration-parameter-name readability-named-parameter readability-redundant-smartptr-get readability-redundant-string-cstr    readability-simplify-boolean-expr readability-uniqueptr-delete-release google-build-explicit-make-pair google-build-namespaces google-build-using-namespace google-explicit-constructor google-global-names-in-headers google-readability-casting    google-readability-namespace-comments google-runtime-int google-runtime-member-string-references google-runtime-memset   google-runtime-operator misc-argument-comment misc-assert-side-effect misc-assign-operator-signature misc-bool-pointer-implicit-conversion misc-definitions-in-headers misc-inaccurate-erase misc-inefficient-algorithm misc-macro-repeated-side-effects misc-move-const-arg misc-move-constructor-init misc-new-delete-overloads misc-noexcept-move-constructor misc-non-copyable-objects misc-sizeof-container misc-static-assert misc-string-integer-assignment misc-swapped-arguments misc-throw-by-value-catch-by-reference misc-undelegated-constructor misc-uniqueptr-reset-release misc-unused-alias-decls misc-unused-parameters misc-unused-raii misc-virtual-near-miss readability-else-after-return)
+FILE_PATTERN="^(?!.*builds\/moc\/).*\.(h|cpp)$"
+#by extension only: ".*\.(h|cpp)"
+# old pattern: "^((?!\.\w+)[\w\.]+\/{1})*\w+\.cpp$"
 
-#DONE
-# 
-#POSSIBLE FORMAT PROBLEMS
-#readability-else-after-return
-#BREAKS BUILD:
-#readability-braces-around-statements misc-macro-parentheses
-#BETTER DONT AUTO_FIX
-#cppcoreguidelines-pro-type-static-cast-downcast readability-implicit-bool-cast
-#ANALYSIS (no auto fixes)
-#clang-diagnostic-*,clang-analyzer-*,-clang-analyzer-alpha*
+
+print_usage() {
+echo "Usage $0 PATH_TO_MAKEFILE FILE_WITH_CHEKS_LIST"
+}
+
+log_to() {
+file=$1
+awk '{if (match($0, "^clang-tidy")) next; else print $0}' log.temp >> $file
+}
+
 
 if [ -z $1 ]; then
-    echo "Usage $0 PATH_TO_MAKEFILE"
+    print_usage
     exit 1
 fi
-
 PROJECT=$1
+
+if [ -z $2 ]; then
+    print_usage
+    exit 2
+fi
+CHECKS=$2
+
+if [ ! -e "$PROJECT/$CHECKS" ]; then
+    echo "Wrong path to CHECKS file"
+    exit 3
+fi
+
 cd $PROJECT
 NPROC=$(nproc)
+
 
 #build compile commands database if needed
 if [ ! -e compile_commands.json ]; then
@@ -42,25 +53,29 @@ else
     echo "compile_commands.json already build, remove it if you need to update database"
 fi
 
-#apply checks
-for i in ${CHECKS[@]}; do
+# apply all checks from file
+for i in $(cat $CHECKS); do
     echo "Applying $i checks..."
-    $CLANG_TIDY -j $NPROC -checks=-*,$i -fix $FILE_PATTERN > /dev/null
+    $CLANG_TIDY -j $NPROC -checks=-*,$i -quiet -fix $FILE_PATTERN  > log.temp 2> /dev/null
+    # check if there are any changes
     DIFFS=$(git diff)
     if [ -n "${DIFFS}" ]; then
-        git $CLANG_FORMAT -f
-        #make sure it still builds
-        make -j $NPROC
+        # make sure it still builds
+        make -j $NPROC > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             echo "Build broken after changes, aborting on $i"
-            exit 4
+            git reset --hard
+            log_to failed.log
+        else
+            git commit --no-verify -a -m "Apply clang-tidy: $i"
+            if [ $? -ne 0 ]; then
+                echo "Could not commit the change, aborting on $i"
+                exit 5
+            fi
+            log_to fixed.log
         fi
-        git commit -a -m "Apply clang-tidy: $i"
-        if [ $? -ne 0 ]; then
-            echo "Could not commit the change, aborting on $i"
-            exit 5
-        fi    
     else
         echo "Nothing has changed"
+        log_to apply-clang-format.log
     fi
 done

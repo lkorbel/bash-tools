@@ -40,11 +40,6 @@ if [ -x $POST_PULL ]; then
     $POST_PULL $OLD_HEAD;
 fi
 
-#dont push if local commit contains word "rebase me"
-git log | grep "<rebase-me>" &> /dev/null
-if [ $? -eq 1 ]; then
-    git push
-else
-    echo "You have changes that wait for local rebase"
-fi
+# send local changes
+git push
 
