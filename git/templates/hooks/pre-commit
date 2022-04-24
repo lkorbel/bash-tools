@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Pre commit git hook
+# Check if you have .clang-format file in main directory of the repository
+# and if yes run clang format on changes to be commited
+# If anything changed, stop commit for user review.
+
+if [ ! -e $(git rev-parse --show-toplevel)/.clang-format ]; then
+    # no format file, don't check
+    exit 0
+fi
+
+git clang-format --diff | git apply >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+  echo "Additional changes from clang-format. Review changes (git diff) or commit them again."
+  exit 1
+fi

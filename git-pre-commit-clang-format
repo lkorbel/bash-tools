@@ -1,7 +1,0 @@
-#!/bin/bash
-
-git clang-format-3.8 --diff | git apply >/dev/null 2>&1
-if [ $? -eq 0 ]; then
-  echo "Additional changes from clang-format. Review changes (git diff) or commit them again."
-  exit 1
-fi
