@@ -1,7 +1,7 @@
-#!/bin/sh 
-# 
+#!/bin/sh
+#
 # DUPLICATES SEARCH TOOL
-# korbel85@gmail.com 
+# korbel85@tuta.io
 #
 
 if [ -z "$2" ]; then
