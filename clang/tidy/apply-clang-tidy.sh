@@ -1,10 +1,20 @@
 #!/bin/bash
 
-# Apply clang tidy checks as separate commits to all files in project
+#
+# APPLY-CLANG-TIDY
+# Łukasz Korbel @ 2020
+# lkorbel@ tuta.io
+#
+# Apply clang tidy checks as separate commits to all files in project.
+# Project must be a cmake project (contains CMakeLists.txt) and be configured as git repository.
+# File containing list of desired clang checks must be located inside project directory. This is simple text file where each line is name of a check recognized by clang-tidy - reffer to example files all-checks.txt and qt-friendly-checks.txt
 # Requires: bear, make, clang-tidy
+# Script is using require.sh from this repository that must be installed in path without suffix.
+
+require make git clang-tidy bear || exit 1
 
 CLANG_TIDY=run-clang-tidy
-#skip any files in hidden directories (name starting with ".")
+#skip any files in hidden directories (names starting with ".")
 FILE_PATTERN="^(?!.*builds\/moc\/).*\.(h|cpp)$"
 #by extension only: ".*\.(h|cpp)"
 # old pattern: "^((?!\.\w+)[\w\.]+\/{1})*\w+\.cpp$"
